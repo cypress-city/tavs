@@ -5,4 +5,4 @@ from modules.core import Bot
 
 if __name__ == "__main__":
     load_dotenv()
-    Bot().run(os.getenv("TOKEN"))
+    Bot(owner_id=int(os.getenv("OWNER_ID"))).run(os.getenv("TOKEN"))
