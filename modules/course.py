@@ -1,4 +1,7 @@
+import discord
 import random
+
+from modules.core import closeness
 
 
 class Course:
@@ -12,6 +15,13 @@ class Course:
         elif isinstance(other, Course):
             return self.abbreviation == other.abbreviation and self.name == other.name
         return False
+
+    def __str__(self):
+        return f"[{self.abbreviation}] {self.name}"
+
+    def closeness(self, user_input: str):
+        term = user_input.lower()
+        return closeness(term, self.abbreviation.lower()) * 8 + closeness(term, self.name.lower())
 
 
 COURSES = {
@@ -48,22 +58,32 @@ COURSES = {
 }
 
 
+async def course_autocomplete(inter: discord.Interaction, current: str) -> list[discord.app_commands.Choice[str]]:
+    matches = sorted([g for g in COURSES.values() if g.closeness(current)], key=lambda c: -c.closeness(current))
+    return [discord.app_commands.Choice(name=str(g), value=g.abbreviation) for g in matches][:25]
+
+
 class CourseSelection:
     def __init__(self, course_pool: list[Course]):
         self._course_pool = {g.abbreviation: True for g in course_pool}
 
+    @staticmethod
+    def random(n: int):
+        return CourseSelection(random.sample(list(COURSES.values()), k=n))
+
     @property
-    def courses(self) -> list[Course]:
+    def available_courses(self) -> list[Course]:
         return [COURSES[k] for k, v in self._course_pool.items() if v]
+
+    @property
+    def banned_courses(self) -> list[Course]:
+        return [COURSES[k] for k, v in self._course_pool.items() if not v]
 
     def ban(self, course: str | Course):
         if isinstance(course, Course):
             course = course.abbreviation
         if course in self._course_pool:
             self._course_pool[course] = False
-
-    def random(self) -> Course:
-        return random.choice(self.courses)
 
 
 DEFAULT_POOL = CourseSelection(list(COURSES.values()))
