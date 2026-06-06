@@ -120,8 +120,9 @@ class ReadyView(MatchView):
 
 class RoundViewBase(MatchView):
     _timeout = 10
+    _submit_color = discord.ButtonStyle.green
 
-    @discord.ui.button(label="Submit time", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Submit time", style=_submit_color)
     async def submit(self, inter: discord.Interaction, button: discord.ui.Button):
         async def callback(modal_inter: discord.Interaction, value: str):
             if player := self.matching_player(inter.user):
@@ -151,8 +152,9 @@ class RoundView(RoundViewBase):
 
 class RoundOverView(RoundViewBase):
     _timeout = 180
+    _submit_color = discord.ButtonStyle.grey
 
-    @discord.ui.button(label="Finish", style=discord.ButtonStyle.grey)
+    @discord.ui.button(label="Finish", style=discord.ButtonStyle.green)
     async def finish(self, inter: discord.Interaction, button: discord.ui.Button):
         await inter.response.defer()
         if player := self.matching_player(inter.user):
