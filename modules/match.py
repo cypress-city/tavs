@@ -3,7 +3,7 @@ import time
 
 from modules.core import Player, prettify_time
 from modules.course import Course, CourseSelection, DEFAULT_POOL
-from modules.ui import construct_embed, RoundView, YELLOW, RED
+from modules.ui import construct_embed, RoundView, YELLOW, RED, timing_gradient
 
 
 class Ruleset:
@@ -15,6 +15,7 @@ class Ruleset:
         self.ban_order: list[int] = kwargs.get("ban_order", [])  # 0 = p1, 1 = p2, empty for no bans
         self.picks_first: int = kwargs.get("picks_first", 1)  # same as above
         self.set_track: bool = kwargs.get("set_track", False)
+        self.wait_for_admin: bool = kwargs.get("wait_for_admin", False)  # extra step used only for invitational
 
 
 QUICKPLAY_RULESET = Ruleset(
@@ -24,7 +25,8 @@ QUICKPLAY_RULESET = Ruleset(
     random_selection=0,
     ban_order=[],
     picks_first=0,
-    set_track=True
+    set_track=True,
+    wait_for_admin=False
 )
 TOURNAMENT_RULESET = Ruleset(
     name="Tournament",
@@ -33,7 +35,18 @@ TOURNAMENT_RULESET = Ruleset(
     random_selection=0,
     ban_order=[0, 1, 1, 0],
     picks_first=1,
-    set_track=False
+    set_track=False,
+    wait_for_admin=False
+)
+INVITATIONAL_RULESET = Ruleset(
+    name="Invitational",
+    rounds=1,
+    round_time=900,
+    random_selection=0,
+    ban_order=[],
+    picks_first=0,
+    set_track=True,
+    wait_for_admin=True
 )
 
 
@@ -41,6 +54,7 @@ class Match:
     def __init__(self, p1: Player, p2: Player, channel: discord.TextChannel, ruleset: Ruleset, **kwargs):
         self.p1 = p1
         self.p2 = p2
+        self.creator: discord.User = kwargs.get("creator", p1.discord)
         self.channel = channel
         self.ruleset = ruleset
         if self.ruleset.random_selection:
@@ -93,7 +107,8 @@ class Match:
             title=f"{self.ruleset.name} Match",
             desc=(f"**{self.current_track.name}**\n\n" if self.current_track else "") +
                  "Select your combo and course, but do not start a Time Trial yet. "
-                 "The match will begin after both players press the Ready button.\n\n"
+                 "The match will begin after both players press the Ready button"
+                 f"{' and the TO starts the clock' if self.ruleset.wait_for_admin else ''}.\n\n"
                  f"{self.p1.discord.mention}: {'✅' if self.p1.ready else '...'}\n"
                  f"{self.p2.discord.mention}: {'✅' if self.p2.ready else '...'}\n",
             color=YELLOW
@@ -114,6 +129,14 @@ class Match:
             title="Course Selection", desc=desc, color=YELLOW
         )
 
+    def start_clock_embed(self):
+        return construct_embed(
+            title="Waiting for TO...",
+            desc="Please wait for the match to begin. **Do not start a Time Trial.** "
+                 f"The TO ({self.creator.mention}) will start the match soon.",
+            color=YELLOW
+        )
+
     def round_embed(self):
         return construct_embed(
             title=f"{self.ruleset.name} Match",
@@ -123,14 +146,14 @@ class Match:
                  f"{' 👑' if self.winning_time() == self.p1.time else ''}\n"
                  f"{self.p2.discord.mention} — `{prettify_time(self.p2.time)}`"
                  f"{' 👑' if self.winning_time() == self.p2.time else ''}",
-            color=YELLOW
+            color=timing_gradient(self.time_remaining() / self.ruleset.round_time)
         )
 
     def round_ending_embed(self):
         return construct_embed(
             title="Round over!",
             desc="**You may finish your current run.** You have 3 minutes to submit your final time.\n\n"
-                 "Press \"Finish\" when you're done, or if you don't have a new time to submit.\n\n"
+                 "Press \"Confirm\" when you're done.\n\n"
                  f"{self.p1.discord.mention}: `{prettify_time(self.p1.time)}` "
                  f"{'✅' if self.p1.finished else '❓'}\n"
                  f"{self.p2.discord.mention}: `{prettify_time(self.p2.time)}` "

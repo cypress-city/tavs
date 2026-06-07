@@ -7,6 +7,10 @@ RED = discord.Colour.from_rgb(224, 16, 32)
 YELLOW = discord.Colour.from_rgb(255, 224, 0)
 
 
+def timing_gradient(progress: float) -> discord.Colour:
+    return discord.Colour.from_hsv(0.35 * progress, 0.95, 0.95)
+
+
 def construct_embed(**kwargs) -> discord.Embed:
     ret = discord.Embed(
         title=kwargs.get("title"),
@@ -88,6 +92,22 @@ class ChallengeView(LimitedUserView):
         self.status = "timed out"
 
 
+class StartClockView(LimitedUserView):
+    value = None
+
+    @discord.ui.button(label="Start", style=discord.ButtonStyle.green)
+    async def start_clock(self, inter: discord.Interaction, button: discord.ui.Button):
+        await inter.response.defer()
+        self.value = True
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.grey)
+    async def cancel(self, inter: discord.Interaction, button: discord.ui.Button):
+        await inter.response.defer()
+        self.value = False
+        self.stop()
+
+
 class MatchView(LimitedUserView):
     _timeout: int = 180
 
@@ -120,10 +140,13 @@ class ReadyView(MatchView):
 
 class RoundViewBase(MatchView):
     _timeout = 10
-    _submit_color = discord.ButtonStyle.green
 
-    @discord.ui.button(label="Submit time", style=_submit_color)
-    async def submit(self, inter: discord.Interaction, button: discord.ui.Button):
+    def __init__(self, p1: Player, p2: Player, **kwargs):
+        super().__init__(p1, p2, **kwargs)
+        self.message: discord.Message = kwargs.get("message", None)
+        self.embed_generator = kwargs.get("embed_generator", None)
+
+    async def submit(self, inter: discord.Interaction):
         async def callback(modal_inter: discord.Interaction, value: str):
             if player := self.matching_player(inter.user):
                 try:
@@ -131,9 +154,15 @@ class RoundViewBase(MatchView):
                 except ValueError:
                     return await modal_inter.response.send_message("Bad formatting. Times should look like `1:23.456`", ephemeral=True)
             await modal_inter.response.defer()
+            if self.message and self.embed_generator:
+                await self.message.edit(embed=self.embed_generator())
 
         await inter.response.send_modal(TimeModal(callback))
         self.stop()
+
+    @discord.ui.button(label="Submit time", style=discord.ButtonStyle.green)
+    async def submit_button(self, inter: discord.Interaction, button: discord.ui.Button):
+        await self.submit(inter)
 
 
 class RoundView(RoundViewBase):
@@ -152,9 +181,12 @@ class RoundView(RoundViewBase):
 
 class RoundOverView(RoundViewBase):
     _timeout = 180
-    _submit_color = discord.ButtonStyle.grey
 
-    @discord.ui.button(label="Finish", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Update time", style=discord.ButtonStyle.grey)
+    async def submit_button(self, inter: discord.Interaction, button: discord.ui.Button):
+        await self.submit(inter)
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green)
     async def finish(self, inter: discord.Interaction, button: discord.ui.Button):
         await inter.response.defer()
         if player := self.matching_player(inter.user):
