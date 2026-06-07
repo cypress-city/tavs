@@ -148,7 +148,7 @@ class MatchCog(commands.Cog):
             )
 
         return await self.run_match(
-            Match(Player(p1), Player(p2), inter.channel, INVITATIONAL_RULESET, set_track=course),
+            Match(Player(p1), Player(p2), inter.channel, INVITATIONAL_RULESET, set_track=course, creator=inter.user),
             inter=inter
         )
 
